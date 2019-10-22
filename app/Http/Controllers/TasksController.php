@@ -11,11 +11,20 @@ class TasksController extends Controller
     // getでmessages/にアクセスされた場合の「一覧表示処理」
     public function index()
     {
-        $tasks = Task::all(); // Modelの一覧取得
+        $data = [];
+        if (\Auth::check()) {
+            $user = \Auth::user();
+            $tasks = $user->tasks()->orderBy('created_at', 'desc')->paginate(10);
+            
+            $data = [
+                'user' => $user,
+                'tasks' => $tasks,
+            ];
+        }
         
-        return view('tasks.index',[
-            'tasks' =>$tasks,
-            ]);
+        return view('tasks.index', [
+            'tasks' => $tasks,
+        ]);
     }
 
     // getでmessages/createにアクセスされた場合の「新規登録画面表示処理」
@@ -31,18 +40,18 @@ class TasksController extends Controller
     // postでmessages/にアクセスされた場合の「新規登録処理」
     public function store(Request $request)
     {
-        //バリデーション
+        // バリデーション
         $this->validate($request, [
             'content' => 'required|max:191',
             'status' => 'required|max:10',
         ]);
-        
-        $task = new Task;   //タスク作成
-        $task ->content = $request->content;    //入力内容をcontentへ
-        $task->status = $request->status;
-        $task->save();  //タスク保存
-        
-        return redirect('/');   //indexへリダイレクト
+
+        $request->user()->tasks()->create([
+            'content' => $request->content,
+            'status' => $request->status,
+        ]);
+
+        return back();
     }
 
     // getでmessages/idにアクセスされた場合の「取得表示処理」
@@ -85,9 +94,12 @@ class TasksController extends Controller
     // deleteでmessages/idにアクセスされた場合の「削除処理」
     public function destroy($id)
     {
-        $task = Task::find($id);
-        $task->delete();
-        
-        return redirect('/');
+        $task = \App\Task::find($id);
+
+        if (\Auth::id() === $task->user_id) {
+            $task->delete();
+        }
+
+        return back();
     }
 }
