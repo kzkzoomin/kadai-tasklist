@@ -11,7 +11,11 @@ class TasksController extends Controller
     // getでmessages/にアクセスされた場合の「一覧表示処理」
     public function index()
     {
-        $tasks = Task::all(); // Modelの一覧取得
+        $tasks = [];
+        if (\Auth::check()) {
+            $user = \Auth::user();
+            $tasks = $user->tasks; // ログイン中Userの投稿を取得
+        }
         
         return view('tasks.index',[
             'tasks' =>$tasks,
@@ -37,10 +41,10 @@ class TasksController extends Controller
             'status' => 'required|max:10',
         ]);
         
-        $task = new Task;   //タスク作成
-        $task ->content = $request->content;    //入力内容をcontentへ
-        $task->status = $request->status;
-        $task->save();  //タスク保存
+        $request->user()->tasks()->create([
+            'content' => $request->content,
+            'status' => $request->status,
+        ]);
         
         return redirect('/');   //indexへリダイレクト
     }
@@ -50,9 +54,15 @@ class TasksController extends Controller
     {
         $task = Task::find($id);  //そのidのタスクを検索
         
-        return view('tasks.show',[
-            'task' => $task,
-            ]);
+        // ユーザーの投稿であればshow画面表示
+        if (\Auth::id() === $task->user_id) {
+                return view('tasks.show',[
+                    'task' => $task,
+                ]);
+            }
+        else {
+            return redirect('/');
+        }
     }
 
     // getでmessages/id/editにアクセスされた場合の「更新画面表示処理」
@@ -60,33 +70,46 @@ class TasksController extends Controller
     {
         $task = Task::find($id);
         
-        return view('tasks.edit',[
-            'task' => $task,
-            ]);
+        // ユーザーの投稿であればedit画面表示
+        if (\Auth::id() === $task->user_id) {
+            return view('tasks.edit',[
+                'task' => $task,
+                ]);
+        }
+        else {
+            return redirect('/');
+        }
     }
 
    // putまたはpatchでmessages/idにアクセスされた場合の「更新処理」
     public function update(Request $request, $id)
     {
-        //バリデーション
-        $this->validate($request, [
-            'content' => 'required|max:191',
-            'status' => 'required|max:10',
-        ]);
+        $task = Task::find($id);
         
-        $task =Task::find($id);
-        $task->content = $request->content;
-        $task->status = $request->status;
-        $task->save();
-        
-        return redirect('/');
+        // UserID一致の場合に更新
+        if (\Auth::id() === $task->user_id) {
+            //バリデーション
+            $this->validate($request, [
+                'content' => 'required|max:191',
+                'status' => 'required|max:10',
+            ]);
+            
+            $task =Task::find($id);
+            $task->content = $request->content;
+            $task->status = $request->status;
+            $task->save();
+            
+            return redirect('/');
+        }
     }
 
     // deleteでmessages/idにアクセスされた場合の「削除処理」
     public function destroy($id)
     {
         $task = Task::find($id);
-        $task->delete();
+        if (\Auth::id() === $task->user_id) {
+            $task->delete();
+        }
         
         return redirect('/');
     }
